@@ -1,0 +1,86 @@
+---
+title: "Machine learning class"
+author: "Alexander Klonov"
+date: "03 10 2020"
+output: html_document
+---
+## Activity prediction
+
+
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+### Reprocessing and data tiding
+```{r, cache=TRUE}
+library(caret)
+library(rattle)
+library(randomForest)
+trainfilename <-"train.csv"
+trainurl<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+
+testfilename<-"test.csv"
+testurl<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+download.file(trainurl, trainfilename)
+training<-read.csv(trainfilename, header = TRUE, na.strings = c("NA", "#DIV/0!"))
+
+download.file(testurl, testfilename)
+testing<-read.csv(testfilename,header = TRUE, na.strings = c("NA", "#DIV/0!"))
+```
+This .csv files have a lot of NA, so better clean them. And also, first 7 columns are info not important to exercises.
+
+```{r, cache=TRUE}
+training<-training[,apply(training,2,function (x)!any(is.na(x)))]
+testing<-testing[,apply(testing,2,function (x)!any(is.na(x)))]
+set.seed(666)
+training<-training[,-c(1:7)]
+testing<-testing[,-c(1:7)]
+```
+
+Creating partions on training set
+
+```{r, cache=TRUE}
+inTrain<-createDataPartition(training$classe, p=0.75, list = FALSE)
+test<-training[-inTrain,]
+train<-training[inTrain,]
+```
+### First model
+To build first model, we are going to use rpart method.
+
+```{r,cache=TRUE}
+model1<-train(classe~., method="rpart", data = train)
+fancyRpartPlot(model1$finalModel)
+pred1<-predict(model1, newdata = test)
+Matrix1<-confusionMatrix(pred1, factor(test$classe)) 
+Matrix1$overall[1]
+```
+As we can see, accuracy is about 50%. This is a very bad model, so we need to use different models.
+
+### Second model 
+Second method we are going to use is random forest. This method have very good accuracy, but very demanding on time.
+```{r, cache=TRUE}
+library(randomForest)
+train$classe<-as.factor(train$classe)
+model2 <- randomForest(classe ~ ., data = train)
+pred2<-predict(model2, newdata = test)
+confusionMatrix(pred2, as.factor(test$classe))$overall[1]
+```
+Accuracy is .99 that is a perfect result.
+
+### Third model 
+For the third model, we are going to use combination of 2 previous models
+```{r, cache=TRUE, warning=FALSE}
+predDf<-data.frame(pred1,pred2,classe=test$classe)
+combmodfit<-train(classe~.,method = "gam", data = predDf)
+combPred<-predict(combmodfit, test$classe)
+confusionMatrix(combPred, as.factor(test$classe))$overall[1]
+```
+The accuracy even worse than in the 1 model.
+
+### Summary 
+The "random forest" gave is the best accuracy, on the test data, so it is wise to apply it to validation set:
+```{r}
+predict(model2,testing)
+
+```
+
